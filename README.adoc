@@ -9,7 +9,7 @@ endif::[]
 :toc: left
 :toclevels: 5
 
-`shapi` is a Lua module implementing a **Sh**ell **API**. It depends on https://github.com/luaposix/luaposix[luaposix].
+`shapi` is a Lua module that implements a **Sh**ell **API**. It depends on https://github.com/luaposix/luaposix[luaposix].
 
 == Install
 
