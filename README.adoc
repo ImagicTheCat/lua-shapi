@@ -1,0 +1,16 @@
+= shapi
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+:toc: left
+:toclevels: 5
+
+`shapi` is a Lua module implementing a **Sh**ell **API**. It depends on https://github.com/luaposix/luaposix[luaposix].
+
+== Install
+
+See link:src[], link:rockspecs[] or https://luarocks.org/modules/imagicthecat-0a6b669a3a/shapi[luarocks].
