@@ -28,8 +28,9 @@ local M = {}
 
 -- This module implements a Shell API.
 --
--- A command object is created and chain methods are applied to it.
--- Each method will directly spawn sub-processes (instead of doing it after a build step).
+-- A command object is created and then chain methods are applied to it.
+-- Methods will directly spawn sub-processes as they are called, there is no
+-- command build phase.
 
 local chain_methods = {}
 
@@ -97,7 +98,7 @@ function chain_methods.__p(self, name, ...)
   return self
 end
 
--- Output from the chain to a file.
+-- Output from the chain to a file (new process).
 -- (file, [mode]): path and mode like io.open()
 --- mode: default to "wb"
 -- (file): file descriptor (number)
@@ -135,11 +136,11 @@ end
 
 -- Return/end the command.
 --
--- It waits on the command processes, propagates exit errors and returns the
+-- It waits on the command processes, propagates exit errors or returns the
 -- final output (stdout) as a string. By default, trailing new lines are
--- removed, but it can be disabled using the mode parameter.
+-- removed, but this can be disabled using the mode parameter.
 --
--- Calling the command object, string conversion and concatenation are aliases to `__return()`.
+-- Calling on the command object, string conversion and concatenation are aliases to `__return()`.
 --
 -- mode: (optional) "binary" to prevent processing of the output
 function chain_methods.__return(self, mode)

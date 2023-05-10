@@ -9,8 +9,98 @@ endif::[]
 :toc: left
 :toclevels: 5
 
-`shapi` is a Lua module that implements a **Sh**ell **API**. It depends on https://github.com/luaposix/luaposix[luaposix].
+`shapi` is a Lua module which implements a **sh**ell **API**. It depends on https://github.com/luaposix/luaposix[luaposix].
+
+The incentive is to work with the CLI/shell with an API instead of learning a shell language like *bash*, for scripting purposes, or if one uses Lua at the heart of its methodology.
+
+.Overview
+====
+[source, lua]
+----
+local sh = require "shapi"
+
+print("HEAD: "..sh:git("rev-parse", "HEAD"))
+
+print(sh:__in("foo/bar.txt"):md5sum())
+
+sh:__p("my-command", "--foo", "bar"):__out("foo/bar.txt")()
+
+sh:sleep(2):__return()
+sh:sleep(2)()
+----
+====
 
 == Install
 
 See link:src[], link:rockspecs[] or https://luarocks.org/modules/imagicthecat-0a6b669a3a/shapi[luarocks].
+
+== API
+
+A command object is created and then chain methods are applied to it. This chaining pattern is similar to *bash* pipes, making `:` behave like `|`.
+
+Methods will directly spawn sub-processes as they are called, there is no build phase of the command.
+
+Special methods start with `__` and other strings will be interpreted as shell process names.
+
+Calling on the command object is an alias to `\__return(...)`. String conversion and concatenation will call `__return()`.
+
+NOTE: The chain starts from the module, the first method is called on it, but the `self` parameter will be replaced with the command object.
+
+=== __str_in(data)
+
+Input raw string data into the chain (create a new process).
+
+=== __in(file, [mode])
+
+Input a file into the chain.
+
+If `file` is a string, `file, [mode]` is the path and mode for `io.open()`. The `mode` defaults to `rb`.
+
+If `file` is a number, it indicates a file descriptor.
+
+=== __out(file, [mode])
+
+Output the chain to a file (create a new process).
+
+If `file` is a string, `file, [mode]` is the path and mode for `io.open()`. The `mode` defaults to `wb`.
+
+If `file` is a number, it indicates a file descriptor.
+
+=== __p(name, ...)
+
+Chain a shell process.
+
+Can be used to chain a shell process with a name which cannot be represented with a Lua name/identifier.
+
+name:: shell process name/path (see luaposix *execp*)
+...:: process arguments
+
+=== <shell-process>(...)
+
+Alias for `__p(<shell-process>, ...)`.
+
+=== __lua(fproc, ...)
+
+Chain a Lua function (create a new process).
+
+fproc:: Lua function
+...:: function arguments
+
+.Implementation of `__str_in`
+====
+[source, lua]
+----
+-- __str_in is equivalent to:
+sh:__lua(function() assert(io.stdout:write(data)) end)
+----
+====
+
+=== __return([mode])
+
+Return/end the command.
+
+It waits on the command processes, propagates exit errors or returns the final output (stdout) as a string.
+
+By default, trailing new lines are removed, but this can be disabled using the mode parameter.
+
+mode:: string, `"binary"` to prevent processing of the output
