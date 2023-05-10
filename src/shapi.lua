@@ -100,7 +100,6 @@ function chain_methods.__out(self, file, mode)
         local chunk = assert(unistd.read(unistd.STDIN_FILENO, stdio.BUFSIZ))
         assert(unistd.write(fd, chunk))
       until chunk == ""
-      assert(unistd.close(fd))
     end)
     assert(unistd.close(fd))
   end
