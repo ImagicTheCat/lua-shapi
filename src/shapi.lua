@@ -195,7 +195,10 @@ local function command_chain_root(command, k)
   -- init command
   command.pipe_end = assert(unistd.dup(unistd.STDIN_FILENO))
   command.children = {}
-  return function(self, ...) return method(command, ...) end
+  return function(self, ...)
+    assert(self == M, "first chain method not called on the module")
+    return method(command, ...)
+  end
 end
 
 local command_mt = {
