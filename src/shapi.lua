@@ -26,24 +26,34 @@ local syswait = require "posix.sys.wait"
 
 local M = {}
 
+-- This module implements a Shell API.
+--
+-- A command object is created and chain methods are applied to it.
+-- Each method will directly spawn sub-processes (instead of doing it after a build step).
+
 local chain_methods = {}
 
+-- Chain a Lua function (new process).
+-- fproc: Lua function
+-- ...: function arguments
 function chain_methods.__lua(self, fproc, ...)
   assert(self.pipe_end, "end of pipe/command")
   -- new pipe end
   local pipe_end = self.pipe_end
   local r, w = assert(unistd.pipe())
   self.pipe_end = r
-  local cid = assert(unistd.fork())
   -- FORK --
-  if cid == 0 then -- child
+  local cid = assert(unistd.fork())
+  if cid == 0 then
+    -- child
     assert(unistd.close(r))
     assert(unistd.dup2(pipe_end, unistd.STDIN_FILENO))
     assert(unistd.dup2(w, unistd.STDOUT_FILENO))
     fproc(...)
     if _VERSION == "Lua 5.1" and not jit then os.exit(0)
     else os.exit(true, true) end
-  else -- parent
+  else
+    -- parent
     table.insert(self.children, cid)
     assert(unistd.close(w))
     assert(unistd.close(pipe_end))
@@ -51,35 +61,50 @@ function chain_methods.__lua(self, fproc, ...)
   return self
 end
 
+-- Input raw string data into the chain (new process).
+-- data: string
 function chain_methods.__str_in(self, data)
   return chain_methods.__lua(self, function() assert(io.stdout:write(data)) end)
 end
 
+-- Input a file into the chain.
+-- (file, [mode]): path and mode like io.open()
+--- mode: default to "rb"
+-- (file): file descriptor (number)
 function chain_methods.__in(self, file, mode)
   assert(self.pipe_end, "end of pipe/command")
-  if type(file) == "string" then
+  if type(file) == "string" then -- file
     mode = mode or "rb"
     local fh = assert(io.open(file, mode))
+    -- close pipe end, because there is no process to link
     assert(unistd.close(self.pipe_end))
     self.pipe_end = assert(stdio.fileno(fh))
-  elseif type(file) == "number" then -- file descriptor
+  else -- number: file descriptor
+    local new_end = assert(unistd.dup(data))
+    -- close pipe end, because there is no process to link
     assert(unistd.close(self.pipe_end))
-    self.pipe_end = assert(unistd.dup(data))
-  else
-    error "invalid input"
+    self.pipe_end = new_end
   end
   return self
 end
 
+-- Chain a shell process.
+-- name: shell process name/path (see luaposix `execp`)
+-- ...: process arguments
 function chain_methods.__p(self, name, ...)
   local args = {...}
   chain_methods.__lua(self, function() assert(unistd.execp(name, args)) end)
   return self
 end
 
+-- Output from the chain to a file.
+-- (file, [mode]): path and mode like io.open()
+--- mode: default to "wb"
+-- (file): file descriptor (number)
 function chain_methods.__out(self, file, mode)
   assert(self.pipe_end, "end of pipe/command")
-  if type(file) == "string" then -- file output
+  if type(file) == "string" then
+    -- file output
     mode = mode or "wb"
     chain_methods.__lua(self, function()
       local fh = assert(io.open(file, mode))
@@ -92,7 +117,8 @@ function chain_methods.__out(self, file, mode)
       end
       fh:close()
     end)
-  else -- number: general file descriptor
+  else
+    -- number: file descriptor
     local fd = assert(unistd.dup(file))
     chain_methods.__lua(self, function()
       -- read/write loop
@@ -101,11 +127,21 @@ function chain_methods.__out(self, file, mode)
         assert(unistd.write(fd, chunk))
       until chunk == ""
     end)
+    -- close fd from the parent
     assert(unistd.close(fd))
   end
   return self
 end
 
+-- Return/end the command.
+--
+-- It waits on the command processes, propagates exit errors and returns the
+-- final output (stdout) as a string. By default, trailing new lines are
+-- removed, but it can be disabled using the mode parameter.
+--
+-- Calling the command object, string conversion and concatenation are aliases to `__return()`.
+--
+-- mode: (optional) "binary" to prevent processing of the output
 function chain_methods.__return(self, mode)
   if mode ~= nil and mode ~= "binary" then error("invalid mode "..string.format("%q", mode)) end
   assert(self.pipe_end, "end of pipe/command")
@@ -125,6 +161,7 @@ function chain_methods.__return(self, mode)
       err = {pid = pid, kind = kind, status = status}
     end
   end
+  -- propagate error
   if err then
     local part = err.kind == "exited" and " with status " or " by signal "
     error("sub-process "..err.kind..part..err.status)
@@ -138,20 +175,25 @@ function chain_methods.__return(self, mode)
   end
 end
 
+-- Get the next method from the command object.
 local function command_chain(self, k)
-  -- generate chain link/step method
   assert(type(k) == "string", "string expected to chain")
   local method = chain_methods[k]
-  if not method then -- handle process methods
+  if not method then
     if k:sub(1,2) == "__" then error("unknown chain special method \""..k.."\"") end
+    -- generate process method
     method = function(self, ...) return chain_methods.__p(self, k, ...) end
   end
   return method
 end
 
--- ignore self (the module) for the root of the chain
+-- Get the first method from the command object.
+-- It ignores `self` (the module) for the root of the chain.
 local function command_chain_root(command, k)
   local method = command_chain(command, k)
+  -- init command
+  command.pipe_end = assert(unistd.dup(unistd.STDIN_FILENO))
+  command.children = {}
   return function(self, ...) return method(command, ...) end
 end
 
@@ -167,14 +209,13 @@ function command_mt.__concat(lhs, rhs)
   return lhs..rhs
 end
 
+-- Module
+
 local M_mt = {}
 
 function M_mt.__index(self, k)
   -- create new command object
-  local cmd = setmetatable({
-    pipe_end = assert(unistd.dup(unistd.STDIN_FILENO)),
-    children = {}
-  }, command_mt)
+  local cmd = setmetatable({}, command_mt)
   -- start chaining
   return command_chain_root(cmd, k)
 end
