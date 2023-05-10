@@ -114,16 +114,17 @@ function chain_methods.__return(self)
   until chunk == ""
   assert(unistd.close(self.pipe_end))
   self.pipe_end = nil
-  -- wait on all children processes
+  -- wait on all children processes (defer error propagation)
+  local err
   for _, cid in ipairs(self.children) do
     local pid, kind, status = assert(syswait.wait(cid))
-    if status ~= 0 then
-      if kind == "exited" then
-        error("sub-process "..kind.." with status "..status)
-      else
-        error("sub-process "..kind.." by signal "..status)
-      end
+    if status ~= 0 and not err then
+      err = {pid = pid, kind = kind, status = status}
     end
+  end
+  if err then
+    local part = err.kind == "exited" and " with status " or " by signal "
+    error("sub-process "..err.kind..part..err.status)
   end
   return table.concat(chunks)
 end
@@ -147,7 +148,8 @@ end
 
 local command_mt = {
   __index = command_chain,
-  __tostring = chain_methods.__return
+  __tostring = chain_methods.__return,
+  __call = chain_methods.__return
 }
 
 function command_mt.__concat(lhs, rhs)
