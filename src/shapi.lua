@@ -51,16 +51,17 @@ function chain_methods.__lua(self, fproc, ...)
   return self
 end
 
-function chain_methods.__in(self, data, mode)
+function chain_methods.__str_in(self, data)
+  return chain_methods.__lua(self, function() assert(io.stdout:write(data)) end)
+end
+
+function chain_methods.__in(self, file, mode)
   assert(self.pipe_end, "end of pipe/command")
-  if type(data) == "string" then
-    if mode then -- open file
-      local file = assert(io.open(data, mode))
-      self.pipe_end = assert(stdio.fileno(file))
-    else -- raw data
-      chain_methods.__lua(self, function() io.stdout:write(data) end)
-    end
-  elseif type(data) == "number" then -- file descriptor
+  if type(file) == "string" then
+    mode = mode or "rb"
+    local fh = assert(io.open(file, mode))
+    self.pipe_end = assert(stdio.fileno(fh))
+  elseif type(file) == "number" then -- file descriptor
     self.pipe_end = data
   else
     error "invalid input"

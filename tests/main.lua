@@ -6,4 +6,4 @@ local function replace_spaces(str)
   io.stdout:write((io.stdin:read("*a"):gsub("%s", str)))
 end
 
-print(sh:__in("src/shapi.lua", "r"):__lua(replace_spaces, "."))
+print(sh:__in("src/shapi.lua"):__lua(replace_spaces, "."))
