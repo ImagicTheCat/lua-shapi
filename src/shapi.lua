@@ -46,7 +46,7 @@ function chain_methods.__lua(self, fproc, ...)
   else -- parent
     table.insert(self.children, cid)
     assert(unistd.close(w))
-    if pipe_end ~= unistd.STDIN_FILENO then assert(unistd.close(pipe_end)) end
+    assert(unistd.close(pipe_end))
   end
   return self
 end
@@ -60,9 +60,11 @@ function chain_methods.__in(self, file, mode)
   if type(file) == "string" then
     mode = mode or "rb"
     local fh = assert(io.open(file, mode))
+    assert(unistd.close(self.pipe_end))
     self.pipe_end = assert(stdio.fileno(fh))
   elseif type(file) == "number" then -- file descriptor
-    self.pipe_end = data
+    assert(unistd.close(self.pipe_end))
+    self.pipe_end = assert(unistd.dup(data))
   else
     error "invalid input"
   end
@@ -163,7 +165,10 @@ local M_mt = {}
 
 function M_mt.__index(self, k)
   -- create new command object
-  local cmd = setmetatable({pipe_end = unistd.STDIN_FILENO, children = {}}, command_mt)
+  local cmd = setmetatable({
+    pipe_end = assert(unistd.dup(unistd.STDIN_FILENO)),
+    children = {}
+  }, command_mt)
   -- start chaining
   return command_chain_root(cmd, k)
 end
