@@ -107,9 +107,10 @@ function chain_methods.__out(self, file, mode)
   return self
 end
 
-function chain_methods.__return(self)
+function chain_methods.__return(self, mode)
+  if mode ~= nil and mode ~= "binary" then error("invalid mode "..string.format("%q", mode)) end
   assert(self.pipe_end, "end of pipe/command")
-  -- read all from stdout (pipe end)
+  -- read all from the pipe end
   local chunks = {}
   repeat
     local chunk = assert(unistd.read(self.pipe_end, stdio.BUFSIZ))
@@ -129,7 +130,13 @@ function chain_methods.__return(self)
     local part = err.kind == "exited" and " with status " or " by signal "
     error("sub-process "..err.kind..part..err.status)
   end
-  return table.concat(chunks)
+  -- post-process output
+  if mode ~= "binary" then
+    -- remove trailing new lines
+    return table.concat(chunks):gsub("[\r\n]*$", "")
+  else
+    return table.concat(chunks)
+  end
 end
 
 local function command_chain(self, k)
