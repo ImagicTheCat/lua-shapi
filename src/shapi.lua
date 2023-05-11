@@ -176,6 +176,11 @@ function chain_methods.__return(self, mode)
   end
 end
 
+-- Chain custom method.
+-- f: function method
+-- ...: method arguments
+function chain_methods.__(self, f, ...) return f(self, ...) end
+
 -- Get the next method from the command object.
 local function command_chain(self, k)
   assert(type(k) == "string", "string expected to chain")

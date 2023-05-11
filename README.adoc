@@ -104,3 +104,23 @@ It waits on the command processes, propagates exit errors or returns the final o
 By default, trailing new lines are removed, but this can be disabled using the mode parameter.
 
 mode:: string, `"binary"` to prevent processing of the output
+
+=== __(f, ...)
+
+Chain custom method.
+
+f(self, ...):: method
+...:: method arguments
+
+.Abstraction of multiple steps
+====
+[source, lua]
+----
+local function my_md5sum(self, file)
+  return self:md5sum(file):cut("-d", " ", "-f", 1)
+end
+
+print(sh:__in("foo/bar.txt"):__(my_md5sum))
+print(sh:__(my_md5sum, "foo/bar.txt"))
+----
+====
