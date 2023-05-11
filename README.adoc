@@ -36,7 +36,7 @@ See link:src[], link:rockspecs[] or https://luarocks.org/modules/imagicthecat-0a
 
 == API
 
-A command object is created and then chain methods are applied to it. This chaining pattern is similar to *bash* pipes, making `:` behave like `|`.
+A command object is created and then chain methods are applied to it. This chaining pattern is similar to *bash* pipes, making `:` behave like `|`. For most methods, it means linking *stdout* from the previous step to *stdin* of the next one while keeping *stderr* of the parent process (unless `__err` is used).
 
 Methods will directly spawn sub-processes as they are called, there is no build phase of the command.
 
@@ -56,7 +56,7 @@ Input a file into the chain.
 
 If `file` is a string, `file, [mode]` is the path and mode for `io.open()`. The `mode` defaults to `rb`.
 
-If `file` is a number, it indicates a file descriptor.
+If `file` is a number, it indicates a file descriptor footnote:fd[A file descriptor of the current process, the one constructing the command.].
 
 === __out(file, [mode])
 
@@ -64,7 +64,24 @@ Output the chain to a file (create a new process).
 
 If `file` is a string, `file, [mode]` is the path and mode for `io.open()`. The `mode` defaults to `wb`.
 
-If `file` is a number, it indicates a file descriptor.
+If `file` is a number, it indicates a file descriptor footnote:fd[].
+
+=== __err(file, [mode])
+
+Setup *stderr* for subsequent processes of the chain.
+
+If `file` is a string, `file, [mode]` is the path and mode for `io.open()`. The `mode` defaults to `wb`.
+
+If `file` is a number, it indicates a file descriptor footnote:fd[].
+
+.Discard *stderr*
+====
+[source, lua]
+----
+local cmd = sh:__err("/dev/null"):cat("foo/missing.txt")
+local ok, out = pcall(cmd)
+----
+====
 
 === __p(name, ...)
 

@@ -26,6 +26,9 @@ local syswait = require "posix.sys.wait"
 
 local M = {}
 
+-- command key to access data
+local CKEY = {}
+
 -- This module implements a Shell API.
 --
 -- A command object is created and then chain methods are applied to it.
@@ -38,24 +41,30 @@ local chain_methods = {}
 -- fproc: Lua function
 -- ...: function arguments
 function chain_methods.__lua(self, fproc, ...)
-  assert(self.pipe_end, "end of pipe/command")
+  assert(self[CKEY].pipe_end, "end of pipe/command")
   -- new pipe end
-  local pipe_end = self.pipe_end
+  local pipe_end = self[CKEY].pipe_end
   local r, w = assert(unistd.pipe())
-  self.pipe_end = r
+  self[CKEY].pipe_end = r
   -- FORK --
   local cid = assert(unistd.fork())
   if cid == 0 then
     -- child
     assert(unistd.close(r))
+    -- setup in/out
     assert(unistd.dup2(pipe_end, unistd.STDIN_FILENO))
     assert(unistd.dup2(w, unistd.STDOUT_FILENO))
+    -- setup err
+    if self[CKEY].stderr then
+      assert(unistd.dup2(self[CKEY].stderr, unistd.STDERR_FILENO))
+    end
+    -- call
     fproc(...)
     if _VERSION == "Lua 5.1" and not jit then os.exit(0)
     else os.exit(true, true) end
   else
     -- parent
-    table.insert(self.children, cid)
+    table.insert(self[CKEY].children, cid)
     assert(unistd.close(w))
     assert(unistd.close(pipe_end))
   end
@@ -73,18 +82,18 @@ end
 --- mode: default to "rb"
 -- (file): file descriptor (number)
 function chain_methods.__in(self, file, mode)
-  assert(self.pipe_end, "end of pipe/command")
+  assert(self[CKEY].pipe_end, "end of pipe/command")
   if type(file) == "string" then -- file
     mode = mode or "rb"
     local fh = assert(io.open(file, mode))
     -- close pipe end, because there is no process to link
-    assert(unistd.close(self.pipe_end))
-    self.pipe_end = assert(stdio.fileno(fh))
+    assert(unistd.close(self[CKEY].pipe_end))
+    self[CKEY].pipe_end = assert(stdio.fileno(fh))
   else -- number: file descriptor
     local new_end = assert(unistd.dup(file))
     -- close pipe end, because there is no process to link
-    assert(unistd.close(self.pipe_end))
-    self.pipe_end = new_end
+    assert(unistd.close(self[CKEY].pipe_end))
+    self[CKEY].pipe_end = new_end
   end
   return self
 end
@@ -103,7 +112,7 @@ end
 --- mode: default to "wb"
 -- (file): file descriptor (number)
 function chain_methods.__out(self, file, mode)
-  assert(self.pipe_end, "end of pipe/command")
+  assert(self[CKEY].pipe_end, "end of pipe/command")
   if type(file) == "string" then
     -- file output
     mode = mode or "wb"
@@ -134,6 +143,25 @@ function chain_methods.__out(self, file, mode)
   return self
 end
 
+-- Setup stderr for subsequent processes of the chain.
+-- (file, [mode]): path and mode like io.open()
+--- mode: default to "wb"
+-- (file): file descriptor (number)
+function chain_methods.__err(self, file, mode)
+  assert(self[CKEY].pipe_end, "end of pipe/command")
+  if type(file) == "string" then -- file
+    mode = mode or "wb"
+    local fh = assert(io.open(file, mode))
+    if self[CKEY].stderr then assert(unistd.close(self[CKEY].stderr)) end
+    self[CKEY].stderr = assert(stdio.fileno(fh))
+  else -- number: file descriptor
+    local new_stderr = assert(unistd.dup(file))
+    if self[CKEY].stderr then assert(unistd.close(self[CKEY].stderr)) end
+    self[CKEY].stderr = new_stderr
+  end
+  return self
+end
+
 -- Return/end the command.
 --
 -- It waits on the command processes, propagates exit errors or returns the
@@ -145,18 +173,23 @@ end
 -- mode: (optional) "binary" to prevent processing of the output
 function chain_methods.__return(self, mode)
   if mode ~= nil and mode ~= "binary" then error("invalid mode "..string.format("%q", mode)) end
-  assert(self.pipe_end, "end of pipe/command")
+  assert(self[CKEY].pipe_end, "end of pipe/command")
   -- read all from the pipe end
   local chunks = {}
   repeat
-    local chunk = assert(unistd.read(self.pipe_end, stdio.BUFSIZ))
+    local chunk = assert(unistd.read(self[CKEY].pipe_end, stdio.BUFSIZ))
     table.insert(chunks, chunk)
   until chunk == ""
-  assert(unistd.close(self.pipe_end))
-  self.pipe_end = nil
+  assert(unistd.close(self[CKEY].pipe_end))
+  self[CKEY].pipe_end = nil
+  -- close stderr
+  if self[CKEY].stderr then
+    assert(unistd.close(self[CKEY].stderr))
+    self[CKEY].stderr = nil
+  end
   -- wait on all children processes (defer error propagation)
   local err
-  for _, cid in ipairs(self.children) do
+  for _, cid in ipairs(self[CKEY].children) do
     local pid, kind, status = assert(syswait.wait(cid))
     if status ~= 0 and not err then
       err = {pid = pid, kind = kind, status = status}
@@ -198,8 +231,8 @@ end
 local function command_chain_root(command, k)
   local method = command_chain(command, k)
   -- init command
-  command.pipe_end = assert(unistd.dup(unistd.STDIN_FILENO))
-  command.children = {}
+  command[CKEY].pipe_end = assert(unistd.dup(unistd.STDIN_FILENO))
+  command[CKEY].children = {}
   return function(self, ...)
     assert(self == M, "first chain method not called on the module")
     return method(command, ...)
@@ -224,7 +257,7 @@ local M_mt = {}
 
 function M_mt.__index(self, k)
   -- create new command object
-  local cmd = setmetatable({}, command_mt)
+  local cmd = setmetatable({[CKEY] = {}}, command_mt)
   -- start chaining
   return command_chain_root(cmd, k)
 end

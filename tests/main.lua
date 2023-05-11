@@ -11,3 +11,11 @@ local function md5sum(self, file)
 end
 
 print(sh:__in("src/shapi.lua"):__lua(replace_spaces, "."):__(md5sum))
+
+do
+  local cmd = sh:__err("/dev/null"):cat("foo/missing.txt")
+  local ok, out = pcall(cmd)
+  print("cat", ok, out)
+end
+
+print(sh:__err("/dev/null"):git("re-parse", "HEAD"):__err(2):git("rev-pase", "HEAD"))
