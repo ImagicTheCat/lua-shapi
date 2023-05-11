@@ -81,7 +81,7 @@ function chain_methods.__in(self, file, mode)
     assert(unistd.close(self.pipe_end))
     self.pipe_end = assert(stdio.fileno(fh))
   else -- number: file descriptor
-    local new_end = assert(unistd.dup(data))
+    local new_end = assert(unistd.dup(file))
     -- close pipe end, because there is no process to link
     assert(unistd.close(self.pipe_end))
     self.pipe_end = new_end
