@@ -8,7 +8,7 @@ source = {
 description = {
   summary = "Module which implements a shell API.",
   detailed = [[
-The incentive is to work with the CLI/shell with an API instead of learning a shell language like bash, for scripting purposes, or if one uses Lua at the heart of its methodology.
+The incentive is to have an alternative to a shell language like *bash*, as an API. E.g. for scripting purposes, if one already uses Lua at the heart of its methodology, or to be embedded into an existing application.
   ]],
   homepage = "https://github.com/ImagicTheCat/lua-shapi",
   license = "MIT"
