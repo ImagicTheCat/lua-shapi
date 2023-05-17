@@ -203,7 +203,7 @@ function chain_methods.__return(self, mode)
   -- post-process output
   if mode ~= "binary" then
     -- remove trailing new lines
-    return table.concat(chunks):gsub("[\r\n]*$", "")
+    return (table.concat(chunks):gsub("[\r\n]*$", ""))
   else
     return table.concat(chunks)
   end
