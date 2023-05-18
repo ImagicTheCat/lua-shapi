@@ -9,9 +9,10 @@ endif::[]
 :toc: left
 :toclevels: 5
 
-`shapi` is a Lua module which implements a **sh**ell **API**. It depends on https://github.com/luaposix/luaposix[luaposix].
+`shapi`, or **sh**ell **API**, is a Lua module which implements some kind of eDSL footnote:[Embedded Domain Specific Language] to work with the shell/CLI footnote:[Command-line interface] environment. It depends on https://github.com/luaposix/luaposix[luaposix].
 
-The incentive is to have an alternative to a shell language like *bash*, as an API. E.g. for scripting purposes, if one already uses Lua at the heart of its methodology, or to be embedded into an existing application.
+The incentive is to have an alternative to a shell language like *bash*, as an API. +
+E.g. for scripting purposes, if one already uses Lua at the heart of its methodology, or to be embedded into an existing application.
 
 .Overview
 ====
