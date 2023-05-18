@@ -6,7 +6,7 @@ source = {
 }
 
 description = {
-  summary = "Module which implements a shell/CLI eDSL (API)."
+  summary = "Module which implements a shell/CLI eDSL (API).",
   detailed = [[
 The incentive is to have an alternative to a shell language like bash, as an API.
 E.g. for scripting purposes, if one already uses Lua at the heart of its methodology, or to be embedded into an existing application.
