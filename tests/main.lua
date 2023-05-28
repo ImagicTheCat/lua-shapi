@@ -18,4 +18,7 @@ do
   print("cat", ok, out)
 end
 
+local state = sh:git("rev-pase", "HEAD"):__wait()
+assert(state.children[1].status == 1)
+
 print(sh:__err("/dev/null"):git("re-parse", "HEAD"):__err(2):git("rev-pase", "HEAD"))

@@ -113,6 +113,19 @@ sh:__lua(function() assert(io.stdout:write(data)) end)
 ----
 ====
 
+=== __wait()
+
+Wait/end the command.
+
+It waits on the command processes and returns the command internal state.
+
+.state (table)
+output:: unprocessed final output (stdout), string
+children:: list of child `{}` (follows the chain order)
+  pid::: 
+  kind::: `"exited"`, `"killed"` or `"stopped"`
+  status::: exit status, or signal number responsible for `"killed"` or `"stopped"`
+
 === __return([mode])
 
 Return/end the command.

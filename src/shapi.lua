@@ -64,7 +64,7 @@ function chain_methods.__lua(self, fproc, ...)
     else os.exit(true, true) end
   else
     -- parent
-    table.insert(self[CKEY].children, cid)
+    table.insert(self[CKEY].children, {pid = cid})
     assert(unistd.close(w))
     assert(unistd.close(pipe_end))
   end
@@ -162,6 +162,37 @@ function chain_methods.__err(self, file, mode)
   return self
 end
 
+-- Wait/end the command (wait on the command processes).
+-- Return command internal state.
+-- state: {}
+--- .output: unprocessed final output (stdout), string
+--- .children: list of {}
+---- .pid: pid
+---- .kind: "exited", "killed" or "stopped"
+---- .status: exit status, or signal number responsible for "killed" or "stopped"
+function chain_methods.__wait(self)
+  assert(self[CKEY].pipe_end, "end of pipe/command")
+  -- read all from the pipe end
+  local chunks = {}
+  repeat
+    local chunk = assert(unistd.read(self[CKEY].pipe_end, stdio.BUFSIZ))
+    table.insert(chunks, chunk)
+  until chunk == ""
+  assert(unistd.close(self[CKEY].pipe_end))
+  self[CKEY].pipe_end = nil
+  self[CKEY].output = table.concat(chunks)
+  -- close stderr
+  if self[CKEY].stderr then
+    assert(unistd.close(self[CKEY].stderr))
+    self[CKEY].stderr = nil
+  end
+  -- wait on all children processes
+  for _, child in ipairs(self[CKEY].children) do
+    _, child.kind, child.status = assert(syswait.wait(child.pid))
+  end
+  return self[CKEY]
+end
+
 -- Return/end the command.
 --
 -- It waits on the command processes, propagates exit errors or returns the
@@ -172,40 +203,21 @@ end
 --
 -- mode: (optional) "binary" to prevent processing of the output
 function chain_methods.__return(self, mode)
-  if mode ~= nil and mode ~= "binary" then error("invalid mode "..string.format("%q", mode)) end
-  assert(self[CKEY].pipe_end, "end of pipe/command")
-  -- read all from the pipe end
-  local chunks = {}
-  repeat
-    local chunk = assert(unistd.read(self[CKEY].pipe_end, stdio.BUFSIZ))
-    table.insert(chunks, chunk)
-  until chunk == ""
-  assert(unistd.close(self[CKEY].pipe_end))
-  self[CKEY].pipe_end = nil
-  -- close stderr
-  if self[CKEY].stderr then
-    assert(unistd.close(self[CKEY].stderr))
-    self[CKEY].stderr = nil
-  end
-  -- wait on all children processes (defer error propagation)
-  local err
-  for _, cid in ipairs(self[CKEY].children) do
-    local pid, kind, status = assert(syswait.wait(cid))
-    if status ~= 0 and not err then
-      err = {pid = pid, kind = kind, status = status}
-    end
-  end
+  if mode ~= nil and mode ~= "binary" then error('invalid mode "'..mode..'"') end
+  local state = chain_methods.__wait(self)
   -- propagate error
-  if err then
-    local part = err.kind == "exited" and " with status " or " by signal "
-    error("sub-process "..err.kind..part..err.status)
+  for _, child in ipairs(self[CKEY].children) do
+    if child.status ~= 0 then
+      local part = child.kind == "exited" and " with status " or " by signal "
+      error("sub-process "..child.kind..part..child.status)
+    end
   end
   -- post-process output
   if mode ~= "binary" then
     -- remove trailing new lines
-    return (table.concat(chunks):gsub("[\r\n]*$", ""))
+    return (state.output:gsub("[\r\n]*$", ""))
   else
-    return table.concat(chunks)
+    return state.output
   end
 end
 
